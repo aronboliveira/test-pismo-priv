@@ -1,0 +1,3 @@
+FROM /src
+
+WORKDIR /app
