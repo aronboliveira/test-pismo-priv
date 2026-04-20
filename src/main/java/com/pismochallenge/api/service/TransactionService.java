@@ -30,7 +30,7 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse createTransaction(CreateTransactionRequest request) {
-        log.info("Criando transação: account_id={}, operation_type_id={}, amount={}",
+        log.info("Creating transaction: account_id={}, operation_type_id={}, amount={}",
                 request.accountId(), request.operationTypeId(), request.amount());
 
         Account account = accountRepository.findById(request.accountId())
@@ -41,7 +41,7 @@ public class TransactionService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Operation type not found with id: " + request.operationTypeId()));
 
-        // Regra de sinal: tipos 1-3 (débito) são negativos, tipo 4 (pagamento) é positivo
+        // Sign rule: types 1-3 (debit) are negative, type 4 (payment) is positive
         BigDecimal amount = request.amount();
         if (operationType.getOperationTypeId() <= 3) {
             amount = amount.negate();
@@ -54,7 +54,7 @@ public class TransactionService {
         transaction.setEventDate(OffsetDateTime.now());
 
         transaction = transactionRepository.save(transaction);
-        log.info("Transação criada com ID: {}", transaction.getTransactionId());
+        log.info("Transaction created with ID: {}", transaction.getTransactionId());
 
         return toResponse(transaction);
     }

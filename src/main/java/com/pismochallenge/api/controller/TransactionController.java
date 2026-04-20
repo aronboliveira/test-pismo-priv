@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/transactions")
 @RequiredArgsConstructor
-@Tag(name = "Transactions", description = "Operações de gerenciamento de transações")
+@Tag(name = "Transactions", description = "Transaction management operations")
 public class TransactionController {
 
     private final TransactionService transactionService;
 
     @PostMapping
-    @Operation(summary = "Criar transação", description = "Cria uma nova transação associada a uma conta existente")
-    @ApiResponse(responseCode = "201", description = "Transação criada com sucesso")
-    @ApiResponse(responseCode = "400", description = "Requisição inválida",
+    @Operation(summary = "Create transaction", description = "Creates a new transaction associated with an existing account")
+    @ApiResponse(responseCode = "201", description = "Transaction created successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid request",
                  content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Conta ou tipo de operação não encontrados",
+    @ApiResponse(responseCode = "404", description = "Account or operation type not found",
                  content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<TransactionResponse> createTransaction(
             @Valid @RequestBody CreateTransactionRequest request) {

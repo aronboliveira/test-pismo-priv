@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/accounts")
 @RequiredArgsConstructor
-@Tag(name = "Accounts", description = "Operações de gerenciamento de contas")
+@Tag(name = "Accounts", description = "Account management operations")
 public class AccountController {
 
     private final AccountService accountService;
 
     @PostMapping
-    @Operation(summary = "Criar conta", description = "Cria uma nova conta com o número de documento informado")
-    @ApiResponse(responseCode = "201", description = "Conta criada com sucesso")
-    @ApiResponse(responseCode = "400", description = "Requisição inválida",
+    @Operation(summary = "Create account", description = "Creates a new account with the provided document number")
+    @ApiResponse(responseCode = "201", description = "Account created successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid request",
                  content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @ApiResponse(responseCode = "422", description = "Documento duplicado",
+    @ApiResponse(responseCode = "422", description = "Duplicated document",
                  content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<AccountResponse> createAccount(@Valid @RequestBody CreateAccountRequest request) {
         AccountResponse response = accountService.createAccount(request);
@@ -36,9 +36,9 @@ public class AccountController {
     }
 
     @GetMapping("/{accountId}")
-    @Operation(summary = "Buscar conta", description = "Retorna os dados de uma conta existente")
-    @ApiResponse(responseCode = "200", description = "Conta encontrada")
-    @ApiResponse(responseCode = "404", description = "Conta não encontrada",
+    @Operation(summary = "Get account", description = "Returns data from an existing account")
+    @ApiResponse(responseCode = "200", description = "Account found")
+    @ApiResponse(responseCode = "404", description = "Account not found",
                  content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<AccountResponse> getAccount(@PathVariable Long accountId) {
         AccountResponse response = accountService.getAccount(accountId);

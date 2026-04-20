@@ -21,14 +21,14 @@ public class DataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (operationTypeRepository.count() == 0) {
-            log.info("Inicializando tipos de operação...");
+            log.info("Initializing operation types...");
             operationTypeRepository.saveAll(List.of(
                 new OperationType(1, "PURCHASE"),
                 new OperationType(2, "INSTALLMENT PURCHASE"),
                 new OperationType(3, "WITHDRAWAL"),
                 new OperationType(4, "PAYMENT")
             ));
-            log.info("Tipos de operação inicializados com sucesso.");
+            log.info("Operation types initialized successfully.");
         }
     }
 }

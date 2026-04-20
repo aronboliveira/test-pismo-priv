@@ -14,8 +14,8 @@ public class OpenApiConfig {
             .info(new Info()
                 .title("Pismo Challenge API")
                 .version("1.0.0")
-                .description("API REST para gerenciamento de contas de clientes e transações financeiras. "
-                        + "Suporta criação de contas, consulta de contas e registro de transações "
-                        + "com diferentes tipos de operação (compra, compra parcelada, saque e pagamento)."));
+                .description("REST API for managing customer accounts and financial transactions. "
+                        + "Supports account creation, account querying, and transaction registration "
+                        + "with different operation types (purchase, installment purchase, withdrawal, and payment)."));
     }
 }

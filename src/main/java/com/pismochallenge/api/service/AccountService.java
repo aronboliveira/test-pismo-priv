@@ -20,17 +20,17 @@ public class AccountService {
 
     @Transactional
     public AccountResponse createAccount(CreateAccountRequest request) {
-        log.info("Criando conta com document_number: {}", request.documentNumber());
+        log.info("Creating account with document_number: {}", request.documentNumber());
         Account account = new Account();
         account.setDocumentNumber(request.documentNumber());
         account = accountRepository.save(account);
-        log.info("Conta criada com ID: {}", account.getAccountId());
+        log.info("Account created with ID: {}", account.getAccountId());
         return toResponse(account);
     }
 
     @Transactional(readOnly = true)
     public AccountResponse getAccount(Long accountId) {
-        log.info("Buscando conta com ID: {}", accountId);
+        log.info("Fetching account with ID: {}", accountId);
         Account account = accountRepository.findById(accountId)
             .orElseThrow(() -> new ResourceNotFoundException("Account not found with id: " + accountId));
         return toResponse(account);
