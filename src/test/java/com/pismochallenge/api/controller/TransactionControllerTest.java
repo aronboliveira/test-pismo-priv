@@ -3,6 +3,8 @@ package com.pismochallenge.api.controller;
 import com.pismochallenge.api.dto.response.TransactionResponse;
 import com.pismochallenge.api.exception.ResourceNotFoundException;
 import com.pismochallenge.api.service.TransactionService;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -25,6 +27,14 @@ class TransactionControllerTest {
 
     @MockitoBean
     private TransactionService transactionService;
+
+    @MockitoBean
+    private RateLimiter apiRateLimiter;
+
+    @BeforeEach
+    void setupRateLimiter() {
+        when(apiRateLimiter.acquirePermission()).thenReturn(true);
+    }
 
     @Test
     void createTransaction_shouldReturn201() throws Exception {

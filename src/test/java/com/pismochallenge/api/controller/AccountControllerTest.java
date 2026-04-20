@@ -3,6 +3,8 @@ package com.pismochallenge.api.controller;
 import com.pismochallenge.api.dto.response.AccountResponse;
 import com.pismochallenge.api.exception.ResourceNotFoundException;
 import com.pismochallenge.api.service.AccountService;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -23,6 +25,14 @@ class AccountControllerTest {
 
     @MockitoBean
     private AccountService accountService;
+
+    @MockitoBean
+    private RateLimiter apiRateLimiter;
+
+    @BeforeEach
+    void setupRateLimiter() {
+        when(apiRateLimiter.acquirePermission()).thenReturn(true);
+    }
 
     @Test
     void createAccount_shouldReturn201() throws Exception {
