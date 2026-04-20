@@ -1,172 +1,303 @@
 # Pismo Challenge API
 
-API REST para gerenciamento de contas de clientes e transações financeiras.
+REST API for customer accounts and financial transactions.
 
-## Tecnologias
+<details open>
+<summary><strong>🇺🇸 English (en-US)</strong></summary>
 
-- **Java 21** (LTS)
-- **Spring Boot 4.0.5** (Web MVC, Data JPA, Validation)
-- **PostgreSQL 17** (banco de dados relacional)
-- **Lombok** (redução de boilerplate)
-- **springdoc-openapi** (documentação Swagger/OpenAPI)
-- **JUnit 5 + Mockito** (testes)
-- **Docker + Docker Compose** (containerização)
+<details open>
+<summary><strong>Build, Run and Deploy</strong></summary>
 
-## Pré-requisitos
+### Prerequisites
 
 - Java 21+
-- Docker e Docker Compose
-- Maven 3.9+ (ou use o wrapper `./mvnw` incluído)
+- Docker and Docker Compose
+- Maven 3.9+ (optional, wrapper `./mvnw` is included)
 
-## Como executar
-
-### Via Docker Compose (recomendado)
-
-Sobe o banco PostgreSQL e a aplicação em containers:
+### 1) Build and test
 
 ```bash
-docker compose up --build
+./mvnw clean verify
 ```
 
-A API estará disponível em `http://localhost:8080`.
-
-> Se a porta 8080 estiver em uso, defina a variável `API_PORT`:
->
-> ```bash
-> API_PORT=8081 docker compose up --build
-> ```
-
-Para parar:
+Optional package without tests:
 
 ```bash
-docker compose down
+./mvnw clean package -DskipTests
 ```
 
-### Execução local (desenvolvimento)
+### 2) Run locally (dev mode)
 
-1. Suba apenas o banco de dados:
+Start only PostgreSQL:
 
 ```bash
-docker compose up db
+docker compose up -d db
 ```
 
-2. Em outro terminal, execute a aplicação:
+Run the API:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-### Build e testes
+### 3) Run full stack with Docker (recommended)
+
+This picks port `8080` if available, otherwise `8081`.
 
 ```bash
-# Compilar e rodar todos os testes
-./mvnw clean verify
+if ss -tln | grep -q ':8080 '; then API_PORT=8081; else API_PORT=8080; fi
+echo "$API_PORT" > /tmp/pismo_api_port
 
-# Apenas compilar (sem testes)
+docker compose down --remove-orphans
+API_PORT="$API_PORT" docker compose up -d --build --wait
+docker compose ps
+```
+
+### 4) Validate health and API docs
+
+```bash
+PORT=$(cat /tmp/pismo_api_port 2>/dev/null || echo 8080)
+BASE="http://localhost:$PORT"
+
+curl -i "$BASE/actuator/health"
+curl -i "$BASE/swagger-ui.html"
+curl -i "$BASE/v3/api-docs"
+curl -i "$BASE/v3/api-docs.yaml"
+```
+
+Expected:
+
+- `/actuator/health` -> `200`
+- `/swagger-ui.html` -> `302` redirect (Swagger UI page renders)
+- `/v3/api-docs` -> `200`
+- `/v3/api-docs.yaml` -> `200`
+
+### 5) Deploy
+
+For a Docker-enabled host, deploy by cloning and running compose:
+
+```bash
+git clone <your-github-repo-url>
+cd pismo-challenge-api
+API_PORT=8080 docker compose up -d --build --wait
+```
+
+Update deployment:
+
+```bash
+git pull
+API_PORT=8080 docker compose up -d --build
+```
+
+Stop/cleanup:
+
+```bash
+docker compose down
+docker compose down -v --remove-orphans
+```
+
+### 6) Publish to GitHub
+
+```bash
+git add .
+git commit -m "docs: improve bilingual README with run instructions"
+git push origin main
+```
+
+</details>
+
+<details>
+<summary><strong>Project Overview</strong></summary>
+
+### Goal
+
+Implement the Phase 1 challenge requirements with clear run instructions, automated tests, Docker support, and OpenAPI documentation.
+
+### Main Endpoints
+
+- `POST /accounts` creates an account using a unique document number.
+- `GET /accounts/{accountId}` retrieves account data.
+- `POST /transactions` creates a transaction linked to an existing account.
+
+### Transaction Rule
+
+Operation type controls sign normalization:
+
+| ID  | Description          | Stored Sign |
+| --- | -------------------- | ----------- |
+| 1   | PURCHASE             | Negative    |
+| 2   | INSTALLMENT PURCHASE | Negative    |
+| 3   | WITHDRAWAL           | Negative    |
+| 4   | PAYMENT              | Positive    |
+
+The client sends a positive amount, and the API applies the proper sign.
+
+### Stack and Architecture
+
+- Java 21 + Spring Boot 4.0.5 (Web MVC, Data JPA, Validation)
+- PostgreSQL 17
+- Layered design: controller -> service -> repository
+- DTO boundary for requests/responses
+- Global exception handling with standardized error payloads
+- OpenAPI/Swagger via springdoc
+- Dockerized API + DB using docker-compose
+
+### API Documentation URLs
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- OpenAPI YAML: `http://localhost:8080/v3/api-docs.yaml`
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>🇧🇷 Português (pt-BR)</strong></summary>
+
+<details open>
+<summary><strong>Build, Run and Deploy</strong></summary>
+
+### Pré-requisitos
+
+- Java 21+
+- Docker e Docker Compose
+- Maven 3.9+ (opcional, o wrapper `./mvnw` já está incluído)
+
+### 1) Build e testes
+
+```bash
+./mvnw clean verify
+```
+
+Empacotamento sem testes (opcional):
+
+```bash
 ./mvnw clean package -DskipTests
 ```
 
-## Endpoints da API
+### 2) Execução local (modo desenvolvimento)
 
-### POST /accounts
+Suba apenas o PostgreSQL:
 
-Cria uma nova conta.
-
-**Request:**
-
-```json
-{
-  "document_number": "12345678900"
-}
+```bash
+docker compose up -d db
 ```
 
-**Response (201):**
+Execute a API:
 
-```json
-{
-  "account_id": 1,
-  "document_number": "12345678900"
-}
+```bash
+./mvnw spring-boot:run
 ```
 
-### GET /accounts/{accountId}
+### 3) Execução completa com Docker (recomendado)
 
-Retorna os dados de uma conta existente.
+Esse fluxo usa a porta `8080` quando livre e `8081` quando `8080` já está ocupada.
 
-**Response (200):**
+```bash
+if ss -tln | grep -q ':8080 '; then API_PORT=8081; else API_PORT=8080; fi
+echo "$API_PORT" > /tmp/pismo_api_port
 
-```json
-{
-  "account_id": 1,
-  "document_number": "12345678900"
-}
+docker compose down --remove-orphans
+API_PORT="$API_PORT" docker compose up -d --build --wait
+docker compose ps
 ```
 
-### POST /transactions
+### 4) Validação de saúde e documentação
 
-Cria uma nova transação associada a uma conta.
+```bash
+PORT=$(cat /tmp/pismo_api_port 2>/dev/null || echo 8080)
+BASE="http://localhost:$PORT"
 
-**Request:**
-
-```json
-{
-  "account_id": 1,
-  "operation_type_id": 4,
-  "amount": 123.45
-}
+curl -i "$BASE/actuator/health"
+curl -i "$BASE/swagger-ui.html"
+curl -i "$BASE/v3/api-docs"
+curl -i "$BASE/v3/api-docs.yaml"
 ```
 
-**Response (201):**
+Esperado:
 
-```json
-{
-  "transaction_id": 1,
-  "account_id": 1,
-  "operation_type_id": 4,
-  "amount": 123.45
-}
+- `/actuator/health` -> `200`
+- `/swagger-ui.html` -> `302` (redireciona para a interface do Swagger)
+- `/v3/api-docs` -> `200`
+- `/v3/api-docs.yaml` -> `200`
+
+### 5) Deploy
+
+Em qualquer host com Docker, faça deploy clonando o repositório e subindo o compose:
+
+```bash
+git clone <url-do-seu-repo-no-github>
+cd pismo-challenge-api
+API_PORT=8080 docker compose up -d --build --wait
 ```
 
-### Tipos de operação
+Atualização de deploy:
 
-| ID  | Descrição            | Sinal do valor |
-| --- | -------------------- | -------------- |
-| 1   | PURCHASE             | Negativo       |
-| 2   | INSTALLMENT PURCHASE | Negativo       |
-| 3   | WITHDRAWAL           | Negativo       |
-| 4   | PAYMENT              | Positivo       |
-
-> O cliente sempre envia o valor positivo. A API aplica o sinal correto com base no tipo de operação.
-
-## Documentação da API (Swagger)
-
-Com a aplicação rodando, acesse:
-
-- **Swagger UI:** http://localhost:8080/swagger-ui.html
-- **OpenAPI JSON:** http://localhost:8080/v3/api-docs
-- **OpenAPI YAML:** http://localhost:8080/v3/api-docs.yaml
-
-## Estrutura do projeto
-
-```
-src/main/java/com/pismochallenge/api/
-├── config/             # Configurações (seed data, OpenAPI)
-├── controller/         # REST controllers
-├── dto/
-│   ├── request/        # DTOs de entrada
-│   └── response/       # DTOs de saída
-├── entity/             # Entidades JPA
-├── exception/          # Exceções e handler global
-├── repository/         # Repositórios Spring Data
-└── service/            # Camada de negócio
+```bash
+git pull
+API_PORT=8080 docker compose up -d --build
 ```
 
-## Decisões de arquitetura
+Parar/limpar ambiente:
 
-- **Arquitetura em camadas:** controller → service → repository. Sem lógica de negócio nos controllers.
-- **DTOs na fronteira:** entidades JPA nunca são expostas diretamente na API.
-- **Regra de sinal no service:** o serviço aplica negativo/positivo com base no tipo de operação.
-- **Validação em DTOs:** anotações Bean Validation (`@NotNull`, `@Positive`, `@NotBlank`).
-- **Exception handler global:** `@RestControllerAdvice` para respostas de erro consistentes.
-- **`NUMERIC(19,4)` para valores monetários:** precisão decimal exata (nunca float/double para dinheiro).
-- **Seed data via `ApplicationRunner`:** os 4 tipos de operação são inseridos automaticamente na inicialização.
+```bash
+docker compose down
+docker compose down -v --remove-orphans
+```
+
+### 6) Publicação no GitHub
+
+```bash
+git add .
+git commit -m "docs: melhorar README bilíngue com instruções de execução"
+git push origin main
+```
+
+</details>
+
+<details>
+<summary><strong>Visão Geral do Projeto</strong></summary>
+
+### Objetivo
+
+Atender aos requisitos da Fase 1 do desafio: API REST funcional, instruções claras de execução, testes automatizados, suporte a Docker e documentação OpenAPI.
+
+### Endpoints Principais
+
+- `POST /accounts` cria uma conta com número de documento único.
+- `GET /accounts/{accountId}` consulta uma conta existente.
+- `POST /transactions` cria transações vinculadas a uma conta válida.
+
+### Regra de Negócio de Sinal
+
+O tipo da operação define o sinal armazenado:
+
+| ID  | Descrição            | Sinal |
+| --- | -------------------- | ----- |
+| 1   | PURCHASE             | -     |
+| 2   | INSTALLMENT PURCHASE | -     |
+| 3   | WITHDRAWAL           | -     |
+| 4   | PAYMENT              | +     |
+
+O cliente envia valor positivo e a API normaliza para o sinal correto.
+
+### Stack e Arquitetura
+
+- Java 21 + Spring Boot 4.0.5 (Web MVC, Data JPA, Validation)
+- PostgreSQL 17
+- Arquitetura em camadas: controller -> service -> repository
+- DTOs para entrada/saída da API
+- Tratamento global de exceções com payload padronizado
+- OpenAPI/Swagger com springdoc
+- API e banco containerizados com docker-compose
+
+### URLs da Documentação
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- OpenAPI YAML: `http://localhost:8080/v3/api-docs.yaml`
+
+</details>
+
+</details>
