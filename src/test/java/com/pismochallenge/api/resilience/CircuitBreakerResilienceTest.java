@@ -45,8 +45,6 @@ class CircuitBreakerResilienceTest {
         when(accountRepository.save(any(Account.class)))
                 .thenThrow(new QueryTimeoutException("timeout"));
 
-        // First call: retry exhausts 3 attempts → CB records 3 failures
-        // With test config: minimumCalls=3, failureRateThreshold=50 → 3/3 = 100% → CB opens
         assertThatThrownBy(() -> accountService.createAccount(new CreateAccountRequest("12345678900")))
                 .isInstanceOf(QueryTimeoutException.class);
 
@@ -55,7 +53,6 @@ class CircuitBreakerResilienceTest {
 
     @Test
     void shouldRejectCalls_whenCircuitIsOpen() {
-        // Programmatically open the circuit
         dbCircuitBreaker.transitionToOpenState();
 
         assertThatThrownBy(() -> accountService.createAccount(new CreateAccountRequest("12345678900")))
@@ -69,7 +66,6 @@ class CircuitBreakerResilienceTest {
         Account saved = new Account(1L, "12345678900");
         when(accountRepository.save(any(Account.class))).thenReturn(saved);
 
-        // Transition to half-open (allows limited probe calls)
         dbCircuitBreaker.transitionToOpenState();
         dbCircuitBreaker.transitionToHalfOpenState();
 
@@ -87,8 +83,6 @@ class CircuitBreakerResilienceTest {
         dbCircuitBreaker.transitionToOpenState();
         dbCircuitBreaker.transitionToHalfOpenState();
 
-        // Test config: permittedNumberOfCallsInHalfOpenState=2
-        // After 2 successful calls, CB should transition to CLOSED
         accountService.createAccount(new CreateAccountRequest("11111111111"));
         accountService.createAccount(new CreateAccountRequest("22222222222"));
 
@@ -103,8 +97,6 @@ class CircuitBreakerResilienceTest {
         dbCircuitBreaker.transitionToOpenState();
         dbCircuitBreaker.transitionToHalfOpenState();
 
-        // Call fails in half-open → retry exhausts permitted calls → CB goes back to OPEN
-        // Final exception is CallNotPermittedException (CB opened mid-retry)
         assertThatThrownBy(() -> accountService.createAccount(new CreateAccountRequest("12345678900")))
                 .isInstanceOfAny(QueryTimeoutException.class, CallNotPermittedException.class);
 
@@ -115,7 +107,6 @@ class CircuitBreakerResilienceTest {
     void shouldNotAffectCircuitBreaker_forBusinessExceptions() {
         when(accountRepository.save(any(Account.class))).thenReturn(new Account(1L, "12345678900"));
 
-        // Successful calls should not degrade the circuit
         for (int i = 0; i < 5; i++) {
             accountService.createAccount(new CreateAccountRequest("12345678900"));
         }

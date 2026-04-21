@@ -51,14 +51,12 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldReturn429_whenRateLimitExceeded() throws Exception {
-        // Exhaust the limit
         for (int i = 0; i < 5; i++) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts/1");
             MockHttpServletResponse response = new MockHttpServletResponse();
             filter.doFilter(request, response, filterChain);
         }
 
-        // Next request should be rate limited
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts/1");
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, filterChain);
@@ -66,12 +64,11 @@ class RateLimitingFilterTest {
         assertThat(response.getStatus()).isEqualTo(429);
         assertThat(response.getContentType()).isEqualTo("application/json");
         assertThat(response.getContentAsString()).contains("Too Many Requests");
-        verify(filterChain, times(5)).doFilter(any(), any()); // Only 5 passed through
+        verify(filterChain, times(5)).doFilter(any(), any());
     }
 
     @Test
     void shouldReturn429WithErrorBody_containingCorrectStructure() throws Exception {
-        // Exhaust the limit
         for (int i = 0; i < 5; i++) {
             filter.doFilter(new MockHttpServletRequest("GET", "/accounts/1"),
                     new MockHttpServletResponse(), filterChain);
@@ -89,13 +86,11 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldNotFilter_actuatorEndpoints() throws Exception {
-        // Exhaust the limit on API endpoints
         for (int i = 0; i < 5; i++) {
             filter.doFilter(new MockHttpServletRequest("GET", "/accounts/1"),
                     new MockHttpServletResponse(), filterChain);
         }
 
-        // Actuator should bypass the filter entirely
         MockHttpServletRequest actuatorRequest = new MockHttpServletRequest("GET", "/actuator/health");
         MockHttpServletResponse actuatorResponse = new MockHttpServletResponse();
         filter.doFilter(actuatorRequest, actuatorResponse, filterChain);
@@ -105,7 +100,6 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldNotFilter_swaggerEndpoints() throws Exception {
-        // Exhaust the limit
         for (int i = 0; i < 5; i++) {
             filter.doFilter(new MockHttpServletRequest("GET", "/accounts/1"),
                     new MockHttpServletResponse(), filterChain);
@@ -120,7 +114,6 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldNotFilter_openApiEndpoints() throws Exception {
-        // Exhaust the limit
         for (int i = 0; i < 5; i++) {
             filter.doFilter(new MockHttpServletRequest("GET", "/accounts/1"),
                     new MockHttpServletResponse(), filterChain);
@@ -135,7 +128,6 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldApplyRateLimit_acrossDifferentEndpoints() throws Exception {
-        // Rate limiter is global — different endpoints share the same quota
         for (int i = 0; i < 3; i++) {
             filter.doFilter(new MockHttpServletRequest("GET", "/accounts/1"),
                     new MockHttpServletResponse(), filterChain);
@@ -145,7 +137,6 @@ class RateLimitingFilterTest {
                     new MockHttpServletResponse(), filterChain);
         }
 
-        // Limit reached (5 total), next should be rejected regardless of endpoint
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(new MockHttpServletRequest("POST", "/accounts"), response, filterChain);
 

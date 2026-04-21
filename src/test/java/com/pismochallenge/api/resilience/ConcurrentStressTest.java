@@ -125,7 +125,6 @@ class ConcurrentStressTest {
 
         List<Future<?>> futures = new ArrayList<>();
 
-        // Writers: create accounts
         for (int i = 0; i < writerCount; i++) {
             final String docNumber = String.format("W%010d", i);
             futures.add(executor.submit(() -> {
@@ -140,7 +139,6 @@ class ConcurrentStressTest {
             }));
         }
 
-        // Readers: attempt to read accounts (some will 404, that's OK)
         for (int i = 0; i < readerCount; i++) {
             final long accountId = (i % writerCount) + 1;
             futures.add(executor.submit(() -> {
@@ -149,7 +147,6 @@ class ConcurrentStressTest {
                     accountService.getAccount(accountId);
                     readSuccess.incrementAndGet();
                 } catch (Exception e) {
-                    // 404 is expected for accounts not yet created
                     if (!e.getMessage().contains("not found")) {
                         failures.incrementAndGet();
                     }
@@ -164,7 +161,6 @@ class ConcurrentStressTest {
         }
 
         assertThat(writeSuccess.get()).isEqualTo(writerCount);
-        // Read results may vary (some accounts created after read attempts)
         assertThat(failures.get()).isEqualTo(0);
 
         executor.shutdown();
@@ -173,7 +169,6 @@ class ConcurrentStressTest {
 
     @Test
     void shouldMaintainDataIntegrity_underConcurrentTransactions() throws Exception {
-        // Create 5 accounts
         List<Long> accountIds = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             AccountResponse account = accountService.createAccount(
@@ -215,7 +210,6 @@ class ConcurrentStressTest {
 
         assertThat(successCount.get()).isEqualTo(totalTransactions);
 
-        // Verify all transactions are persisted
         long persistedCount = transactionRepository.count();
         assertThat(persistedCount).isEqualTo(totalTransactions);
 
@@ -249,7 +243,6 @@ class ConcurrentStressTest {
 
         long totalTime = System.currentTimeMillis() - startTime;
         double avgLatency = latencies.stream().mapToLong(l -> l).average().orElse(0);
-        // long p99Latency = latencies.stream().sorted().skip((long) (latencies.size() * 0.99)).findFirst().orElse(0L);
 
         assertThat(totalTime).as("Total time for %d transactions should be under 30s", burstSize)
                 .isLessThan(30_000);

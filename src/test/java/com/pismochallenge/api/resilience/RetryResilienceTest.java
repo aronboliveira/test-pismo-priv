@@ -147,10 +147,9 @@ class RetryResilienceTest {
         AccountResponse response = accountService.createAccount(new CreateAccountRequest("12345678900"));
         long elapsed = System.currentTimeMillis() - startTime;
 
+        long minBackoffMs = 50L + 75L - 45L;
         assertThat(response.accountId()).isEqualTo(1L);
-        // Test config: initial-interval-ms=50, multiplier=1.5
-        // Delay 1: 50ms, Delay 2: 75ms → total >= 100ms (with margin)
-        assertThat(elapsed).isGreaterThanOrEqualTo(80);
+        assertThat(elapsed).isGreaterThanOrEqualTo(minBackoffMs);
         verify(accountRepository, times(3)).save(any(Account.class));
     }
 }
