@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build, Test, Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Grant execute permission to Maven wrapper
+        run: chmod +x ./mvnw
+
+      - name: Build, run tests, enforce JaCoCo 100% gate
+        run: ./mvnw --batch-mode --errors --no-transfer-progress clean verify
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload JaCoCo HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+
+  docker-smoke:
+    name: Docker Compose Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and start stack
+        run: API_PORT=8080 docker compose up -d --build --wait
+
+      - name: Wait for actuator health
+        run: |
+          for attempt in $(seq 1 30); do
+            status=$(curl -fsS http://localhost:8080/actuator/health | grep -o '"status":"UP"' || true)
+            if [ -n "$status" ]; then
+              echo "API is UP"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API failed to report UP in time"
+          docker compose logs
+          exit 1
+
+      - name: Smoke test account + transaction endpoints
+        run: |
+          set -euo pipefail
+          created=$(curl -fsS -X POST http://localhost:8080/accounts \
+            -H 'Content-Type: application/json' \
+            -d '{"document_number":"12345678900"}')
+          echo "Created account: $created"
+
+          account_id=$(echo "$created" | python3 -c 'import json,sys;print(json.load(sys.stdin)["account_id"])')
+
+          curl -fsS "http://localhost:8080/accounts/${account_id}"
+
+          curl -fsS -X POST http://localhost:8080/transactions \
+            -H 'Content-Type: application/json' \
+            -d "{\"account_id\":${account_id},\"operation_type_id\":1,\"amount\":50.00}"
+
+          curl -fsS -X POST http://localhost:8080/transactions \
+            -H 'Content-Type: application/json' \
+            -d "{\"account_id\":${account_id},\"operation_type_id\":4,\"amount\":100.00}"
+
+      - name: Verify OpenAPI docs
+        run: |
+          curl -fsS http://localhost:8080/v3/api-docs > /tmp/api-docs.json
+          python3 -c 'import json;d=json.load(open("/tmp/api-docs.json"));assert "paths" in d and "/accounts" in d["paths"] and "/transactions" in d["paths"]'
+          curl -fsS -L http://localhost:8080/swagger-ui.html -o /dev/null
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v --remove-orphans
