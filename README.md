@@ -104,6 +104,24 @@ git commit -m "docs: improve bilingual README with run instructions"
 git push origin main
 ```
 
+### 7) Refresh handoff/documentation artifacts
+
+Use this when preparing a final handoff package for reviewers:
+
+```bash
+date -Iseconds > .notes/tees/20260420/updated-at.txt
+git --no-pager log --oneline -40 > .notes/tees/20260420/git-log.txt
+git status --short --branch > .notes/tees/20260420/git-status.txt
+find . -maxdepth 4 | sort > .notes/tees/20260420/fs-tree-v2.txt
+{ ./mvnw -q -DskipTests validate && echo MAVEN_VALIDATE_OK; } > .notes/tees/20260420/maven-validate.txt 2>&1
+```
+
+Then update these docs together:
+
+- `README.md`
+- `.notes/THE_CLI.md`
+- `.notes/.llms/ctx/challenge-context-handoffs/v9_20260420/session_handoff_v9.md`
+
 </details>
 
 <details>
@@ -155,6 +173,12 @@ The client sends a positive amount, and the API applies the proper sign.
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 - OpenAPI YAML: `http://localhost:8080/v3/api-docs.yaml`
+
+### Companion documentation
+
+- Runtime CLI playbook: `.notes/THE_CLI.md`
+- Session handoff (v9): `.notes/.llms/ctx/challenge-context-handoffs/v9_20260420/session_handoff_v9.md`
+- Recorded command artifacts: `.notes/tees/20260420/`
 
 </details>
 
@@ -262,6 +286,24 @@ git commit -m "docs: melhorar README bilíngue com instruções de execução"
 git push origin main
 ```
 
+### 7) Atualizar artefatos de handoff/documentação
+
+Use este bloco ao preparar o pacote final para revisão:
+
+```bash
+date -Iseconds > .notes/tees/20260420/updated-at.txt
+git --no-pager log --oneline -40 > .notes/tees/20260420/git-log.txt
+git status --short --branch > .notes/tees/20260420/git-status.txt
+find . -maxdepth 4 | sort > .notes/tees/20260420/fs-tree-v2.txt
+{ ./mvnw -q -DskipTests validate && echo MAVEN_VALIDATE_OK; } > .notes/tees/20260420/maven-validate.txt 2>&1
+```
+
+Depois, mantenha estes documentos sincronizados:
+
+- `README.md`
+- `.notes/THE_CLI.md`
+- `.notes/.llms/ctx/challenge-context-handoffs/v9_20260420/session_handoff_v9.md`
+
 </details>
 
 <details>
@@ -305,6 +347,12 @@ O cliente envia valor positivo e a API normaliza para o sinal correto.
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 - OpenAPI YAML: `http://localhost:8080/v3/api-docs.yaml`
+
+### Documentos complementares
+
+- Playbook de execução por CLI: `.notes/THE_CLI.md`
+- Handoff da sessão (v9): `.notes/.llms/ctx/challenge-context-handoffs/v9_20260420/session_handoff_v9.md`
+- Artefatos de comandos gravados: `.notes/tees/20260420/`
 
 </details>
 
