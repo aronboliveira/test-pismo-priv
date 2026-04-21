@@ -54,12 +54,8 @@ public class ResilienceConfig {
                         event.getName(),
                         event.getWaitInterval().toMillis(),
                         event.getLastThrowable().getMessage()))
-                .onSuccess(event -> {
-                    if (event.getNumberOfRetryAttempts() > 0) {
-                        log.info("[RETRY] '{}' succeeded after {} attempt(s)",
-                                event.getName(), event.getNumberOfRetryAttempts());
-                    }
-                })
+                .onSuccess(event -> log.info("[RETRY] '{}' succeeded after {} attempt(s)",
+                        event.getName(), event.getNumberOfRetryAttempts()))
                 .onError(event -> log.error("[RETRY] '{}' exhausted after {} attempt(s) — final cause: {}",
                         event.getName(),
                         event.getNumberOfRetryAttempts(),
