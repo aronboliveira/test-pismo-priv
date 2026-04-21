@@ -9,15 +9,19 @@ import com.pismochallenge.api.exception.ResourceNotFoundException;
 import com.pismochallenge.api.repository.AccountRepository;
 import com.pismochallenge.api.repository.OperationTypeRepository;
 import com.pismochallenge.api.repository.TransactionRepository;
+import com.pismochallenge.api.strategy.AmountSignResolver;
+import com.pismochallenge.api.strategy.CreditAmountSignStrategy;
+import com.pismochallenge.api.strategy.DebitAmountSignStrategy;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -34,8 +38,15 @@ class TransactionServiceTest {
     @Mock
     private OperationTypeRepository operationTypeRepository;
 
-    @InjectMocks
     private TransactionService transactionService;
+
+    @BeforeEach
+    void setUp() {
+        AmountSignResolver resolver = new AmountSignResolver(
+                List.of(new DebitAmountSignStrategy(), new CreditAmountSignStrategy()));
+        transactionService = new TransactionService(
+                transactionRepository, accountRepository, operationTypeRepository, resolver);
+    }
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3})
