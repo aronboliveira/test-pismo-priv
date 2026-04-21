@@ -138,9 +138,17 @@ The client sends a positive amount, and the API applies the proper sign.
 - PostgreSQL 17
 - Layered design: controller -> service -> repository
 - DTO boundary for requests/responses
+- Strategy pattern (`AmountSignStrategy` + resolver) for operation-type sign rule
+- Resilience4j: retry with exponential backoff, circuit breaker, rate limiter
 - Global exception handling with standardized error payloads
 - OpenAPI/Swagger via springdoc
 - Dockerized API + DB using docker-compose
+- GitHub Actions CI: build, tests, JaCoCo gate, Docker compose smoke test
+
+### Quality Gates
+
+- **JaCoCo coverage gate (enforced at `verify`)**: 100% on instructions, branches, lines, methods, classes.
+- **Test count**: 69 tests across unit, slice (`@WebMvcTest`), integration (`@SpringBootTest`), resilience and concurrent stress suites.
 
 ### API Documentation URLs
 
