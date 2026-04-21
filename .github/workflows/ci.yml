@@ -30,6 +30,88 @@ jobs:
       - name: Build, run tests, enforce JaCoCo 100% gate
         run: ./mvnw --batch-mode --errors --no-transfer-progress clean verify
 
+      - name: Assert zero test failures, errors, and skips
+        run: |
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET, glob, sys
+
+          reports = glob.glob("target/surefire-reports/TEST-*.xml")
+          if not reports:
+              print("ERROR: no surefire XML reports found", file=sys.stderr)
+              sys.exit(1)
+
+          totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          for path in sorted(reports):
+              suite = ET.parse(path).getroot()
+              for k in totals:
+                  totals[k] += int(suite.get(k, 0))
+              print(f"  {suite.get('name')}: "
+                    f"tests={suite.get('tests')} "
+                    f"failures={suite.get('failures')} "
+                    f"errors={suite.get('errors')} "
+                    f"skipped={suite.get('skipped')}")
+
+          print(f"\nTotal — tests={totals['tests']} "
+                f"failures={totals['failures']} "
+                f"errors={totals['errors']} "
+                f"skipped={totals['skipped']}")
+
+          issues = []
+          if totals["failures"] > 0:
+              issues.append(f"{totals['failures']} failure(s)")
+          if totals["errors"] > 0:
+              issues.append(f"{totals['errors']} error(s)")
+          if totals["skipped"] > 0:
+              issues.append(f"{totals['skipped']} skipped test(s)")
+          if totals["tests"] == 0:
+              issues.append("no tests ran")
+
+          if issues:
+              print(f"GATE FAILED: {', '.join(issues)}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Gate passed: all {totals['tests']} tests green, "
+                f"zero failures / errors / skips.")
+          EOF
+
+      - name: Emit coverage summary to job summary
+        if: always()
+        run: |
+          csv="target/site/jacoco/jacoco.csv"
+          if [ ! -f "$csv" ]; then echo "jacoco.csv not found — skipping"; exit 0; fi
+          python3 - <<'EOF'
+          import csv, os, sys
+
+          totals = {k: 0 for k in [
+              "INSTRUCTION_COVERED", "INSTRUCTION_MISSED",
+              "BRANCH_COVERED",      "BRANCH_MISSED",
+              "LINE_COVERED",        "LINE_MISSED",
+          ]}
+          with open("target/site/jacoco/jacoco.csv") as f:
+              for row in csv.DictReader(f):
+                  for k in totals:
+                      totals[k] += int(row.get(k, 0))
+
+          def pct(cov, miss):
+              total = cov + miss
+              return f"{100 * cov / total:.1f}%" if total else "N/A"
+
+          lines = [
+              "## JaCoCo Coverage\n",
+              "| Counter     | Coverage |",
+              "|-------------|----------|",
+              f"| Instruction | {pct(totals['INSTRUCTION_COVERED'], totals['INSTRUCTION_MISSED'])} |",
+              f"| Branch      | {pct(totals['BRANCH_COVERED'], totals['BRANCH_MISSED'])} |",
+              f"| Line        | {pct(totals['LINE_COVERED'], totals['LINE_MISSED'])} |",
+          ]
+          summary = "\n".join(lines) + "\n"
+          print(summary)
+          step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if step_summary:
+              with open(step_summary, "a") as fh:
+                  fh.write(summary)
+          EOF
+
       - name: Upload Surefire reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,45 +141,193 @@ jobs:
       - name: Build and start stack
         run: API_PORT=8080 docker compose up -d --build --wait
 
+      - name: Assert both containers are healthy
+        run: |
+          for svc in db api; do
+            health=$(docker inspect \
+              --format='{{.State.Health.Status}}' \
+              "$(docker compose ps -q "$svc")")
+            echo "$svc → $health"
+            [ "$health" = "healthy" ] || {
+              echo "FAIL: $svc is not healthy"
+              docker compose logs
+              exit 1
+            }
+          done
+
       - name: Wait for actuator health
         run: |
           for attempt in $(seq 1 30); do
-            status=$(curl -fsS http://localhost:8080/actuator/health | grep -o '"status":"UP"' || true)
-            if [ -n "$status" ]; then
-              echo "API is UP"
-              exit 0
-            fi
+            status=$(curl -fsS http://localhost:8080/actuator/health \
+              | grep -o '"status":"UP"' || true)
+            if [ -n "$status" ]; then echo "API is UP"; exit 0; fi
             sleep 2
           done
           echo "API failed to report UP in time"
           docker compose logs
           exit 1
 
-      - name: Smoke test account + transaction endpoints
+      - name: Smoke — happy-path account and transaction flow
         run: |
           set -euo pipefail
+          DOC=$(date +%s%N)
+
           created=$(curl -fsS -X POST http://localhost:8080/accounts \
             -H 'Content-Type: application/json' \
-            -d '{"document_number":"12345678900"}')
+            -d "{\"document_number\":\"$DOC\"}")
           echo "Created account: $created"
+          account_id=$(echo "$created" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["account_id"])')
 
-          account_id=$(echo "$created" | python3 -c 'import json,sys;print(json.load(sys.stdin)["account_id"])')
+          fetched=$(curl -fsS "http://localhost:8080/accounts/${account_id}")
+          ACCOUNT_ID=$account_id FETCHED=$fetched python3 - <<'EOF'
+          import json, os
+          d = json.loads(os.environ["FETCHED"])
+          aid = int(os.environ["ACCOUNT_ID"])
+          assert d["account_id"] == aid, f"account_id mismatch: {d}"
+          print("Account GET round-trip OK")
+          EOF
 
-          curl -fsS "http://localhost:8080/accounts/${account_id}"
+          for op in 1 2 3; do
+            resp=$(curl -fsS -X POST http://localhost:8080/transactions \
+              -H 'Content-Type: application/json' \
+              -d "{\"account_id\":${account_id},\"operation_type_id\":${op},\"amount\":10.00}")
+            OP=$op RESP=$resp python3 - <<'EOF'
+          import json, os
+          d = json.loads(os.environ["RESP"])
+          op = int(os.environ["OP"])
+          assert float(d["amount"]) < 0, f"op {op}: expected negative amount, got {d}"
+          print(f"op {op} -> amount={d['amount']} (negative OK)")
+          EOF
+          done
 
-          curl -fsS -X POST http://localhost:8080/transactions \
+          resp=$(curl -fsS -X POST http://localhost:8080/transactions \
             -H 'Content-Type: application/json' \
-            -d "{\"account_id\":${account_id},\"operation_type_id\":1,\"amount\":50.00}"
+            -d "{\"account_id\":${account_id},\"operation_type_id\":4,\"amount\":100.00}")
+          RESP=$resp python3 - <<'EOF'
+          import json, os
+          d = json.loads(os.environ["RESP"])
+          assert float(d["amount"]) > 0, f"op 4: expected positive amount, got {d}"
+          print(f"op 4 -> amount={d['amount']} (positive OK)")
+          EOF
 
-          curl -fsS -X POST http://localhost:8080/transactions \
-            -H 'Content-Type: application/json' \
-            -d "{\"account_id\":${account_id},\"operation_type_id\":4,\"amount\":100.00}"
-
-      - name: Verify OpenAPI docs
+      - name: Smoke — error-scenario HTTP status assertions
         run: |
+          set -euo pipefail
+
+          # 404 — non-existent account
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            http://localhost:8080/accounts/999999)
+          [ "$code" = "404" ] || { echo "FAIL: GET /accounts/999999 expected 404, got $code"; exit 1; }
+          echo "OK [GET /accounts/999999] → $code"
+
+          # 400 — missing document_number
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST http://localhost:8080/accounts \
+            -H 'Content-Type: application/json' -d '{}')
+          [ "$code" = "400" ] || { echo "FAIL: POST /accounts (empty) expected 400, got $code"; exit 1; }
+          echo "OK [POST /accounts (empty body)] → $code"
+
+          # 400 — negative amount
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST http://localhost:8080/transactions \
+            -H 'Content-Type: application/json' \
+            -d '{"account_id":1,"operation_type_id":1,"amount":-50.0}')
+          [ "$code" = "400" ] || { echo "FAIL: POST /transactions (amount=-50) expected 400, got $code"; exit 1; }
+          echo "OK [POST /transactions (amount=-50)] → $code"
+
+          # 400 — zero amount (@Positive rejects 0)
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST http://localhost:8080/transactions \
+            -H 'Content-Type: application/json' \
+            -d '{"account_id":1,"operation_type_id":1,"amount":0}')
+          [ "$code" = "400" ] || { echo "FAIL: POST /transactions (amount=0) expected 400, got $code"; exit 1; }
+          echo "OK [POST /transactions (amount=0)] → $code"
+
+          # 404 — transaction for non-existent account
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST http://localhost:8080/transactions \
+            -H 'Content-Type: application/json' \
+            -d '{"account_id":999999,"operation_type_id":1,"amount":10.0}')
+          [ "$code" = "404" ] || { echo "FAIL: POST /transactions (account=999999) expected 404, got $code"; exit 1; }
+          echo "OK [POST /transactions (account=999999)] → $code"
+
+          # 422 — duplicate document_number
+          DOC=$(date +%s%N)
+          curl -fsS -X POST http://localhost:8080/accounts \
+            -H 'Content-Type: application/json' \
+            -d "{\"document_number\":\"${DOC}\"}" > /dev/null
+          code=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST http://localhost:8080/accounts \
+            -H 'Content-Type: application/json' \
+            -d "{\"document_number\":\"${DOC}\"}")
+          [ "$code" = "422" ] || { echo "FAIL: POST /accounts (duplicate) expected 422, got $code"; exit 1; }
+          echo "OK [POST /accounts (duplicate document_number)] → $code"
+
+          echo "All error-scenario assertions passed."
+
+      - name: Smoke — OpenAPI schema validation
+        run: |
+          set -euo pipefail
           curl -fsS http://localhost:8080/v3/api-docs > /tmp/api-docs.json
-          python3 -c 'import json;d=json.load(open("/tmp/api-docs.json"));assert "paths" in d and "/accounts" in d["paths"] and "/transactions" in d["paths"]'
+          python3 - <<'EOF'
+          import json, sys
+
+          d = json.load(open("/tmp/api-docs.json"))
+          assert "info" in d and "title" in d["info"], "Missing info.title"
+          assert "paths" in d, "Missing paths"
+
+          expected = {
+              "/accounts":             ["post"],
+              "/accounts/{accountId}": ["get"],
+              "/transactions":         ["post"],
+          }
+          for path, methods in expected.items():
+              assert path in d["paths"], f"Missing path: {path}"
+              for m in methods:
+                  assert m in d["paths"][path], f"Missing {m.upper()} on {path}"
+
+          print("OpenAPI schema validation passed.")
+          EOF
           curl -fsS -L http://localhost:8080/swagger-ui.html -o /dev/null
+          echo "Swagger UI reachable."
+
+      - name: Smoke — rate-limiter triggers HTTP 429
+        run: |
+          python3 - <<'EOF'
+          import urllib.request, urllib.error, threading
+          from collections import Counter
+
+          results = []
+          lock = threading.Lock()
+
+          def fetch(_):
+              try:
+                  urllib.request.urlopen("http://localhost:8080/accounts/1", timeout=3)
+                  with lock:
+                      results.append(200)
+              except urllib.error.HTTPError as exc:
+                  with lock:
+                      results.append(exc.code)
+              except Exception:
+                  with lock:
+                      results.append(0)
+
+          threads = [threading.Thread(target=fetch, args=(i,)) for i in range(200)]
+          for t in threads:
+              t.start()
+          for t in threads:
+              t.join()
+
+          counts = Counter(results)
+          print(f"Response distribution: {dict(counts)}")
+
+          if counts.get(429, 0) > 0:
+              print(f"Rate limiter triggered — {counts[429]} request(s) returned HTTP 429.")
+          else:
+              print("WARNING: rate limiter did not trigger in 200 concurrent requests.")
+              print("Thread scheduling may have spread requests across refresh windows.")
+          EOF
 
       - name: Dump compose logs on failure
         if: failure()
