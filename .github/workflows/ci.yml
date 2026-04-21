@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
 
       - name: Grant execute permission to Maven wrapper
@@ -170,7 +170,8 @@ jobs:
       - name: Smoke — happy-path account and transaction flow
         run: |
           set -euo pipefail
-          DOC=$(date +%s%N)
+          # varchar(11) — take the last 11 digits of the nanosecond timestamp
+          DOC=$(date +%s%N | tail -c 12 | head -c 11)
 
           created=$(curl -fsS -X POST http://localhost:8080/accounts \
             -H 'Content-Type: application/json' \
@@ -252,8 +253,8 @@ jobs:
           [ "$code" = "404" ] || { echo "FAIL: POST /transactions (account=999999) expected 404, got $code"; exit 1; }
           echo "OK [POST /transactions (account=999999)] → $code"
 
-          # 422 — duplicate document_number
-          DOC=$(date +%s%N)
+          # 422 — duplicate document_number (varchar(11) — last 11 digits)
+          DOC=$(date +%s%N | tail -c 12 | head -c 11)
           curl -fsS -X POST http://localhost:8080/accounts \
             -H 'Content-Type: application/json' \
             -d "{\"document_number\":\"${DOC}\"}" > /dev/null
