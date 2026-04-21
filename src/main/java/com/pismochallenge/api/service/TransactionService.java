@@ -9,6 +9,7 @@ import com.pismochallenge.api.exception.ResourceNotFoundException;
 import com.pismochallenge.api.repository.AccountRepository;
 import com.pismochallenge.api.repository.OperationTypeRepository;
 import com.pismochallenge.api.repository.TransactionRepository;
+import com.pismochallenge.api.strategy.AmountSignResolver;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final OperationTypeRepository operationTypeRepository;
+    private final AmountSignResolver amountSignResolver;
 
     @Transactional
     public TransactionResponse createTransaction(CreateTransactionRequest request) {
@@ -41,16 +43,13 @@ public class TransactionService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Operation type not found with id: " + request.operationTypeId()));
 
-        // Sign rule: types 1-3 (debit) are negative, type 4 (payment) is positive
-        BigDecimal amount = request.amount();
-        if (operationType.getOperationTypeId() <= 3) {
-            amount = amount.negate();
-        }
+        BigDecimal signedAmount = amountSignResolver.normalize(
+                operationType.getOperationTypeId(), request.amount());
 
         Transaction transaction = new Transaction();
         transaction.setAccount(account);
         transaction.setOperationType(operationType);
-        transaction.setAmount(amount);
+        transaction.setAmount(signedAmount);
         transaction.setEventDate(OffsetDateTime.now());
 
         transaction = transactionRepository.save(transaction);
